@@ -1,0 +1,276 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sovereign Hub | Key System</title>
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  color: #f5f5f5;
+  background:
+    radial-gradient(ellipse at top, #351010 0%, transparent 55%),
+    #080808;
+  font-family: Arial, sans-serif;
+}
+
+.card {
+  width: 100%;
+  max-width: 430px;
+  padding: 32px 24px;
+  background: #111;
+  border: 1px solid #392020;
+  border-radius: 18px;
+  text-align: center;
+  box-shadow: 0 20px 70px #0009;
+}
+
+.logo {
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 18px;
+  background: #250c0c;
+  border: 1px solid #b92727;
+  border-radius: 20px;
+  color: #ff4242;
+  font-size: 30px;
+  font-weight: 900;
+}
+
+h1 {
+  margin: 0;
+  font-size: 27px;
+  letter-spacing: 2px;
+}
+
+h1 span { color: #f33; }
+
+.subtitle {
+  color: #999;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 12px 0 25px;
+}
+
+.status {
+  padding: 12px;
+  border-radius: 9px;
+  background: #191919;
+  color: #aaa;
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+button {
+  width: 100%;
+  padding: 15px;
+  background: #e52c2c;
+  border: 0;
+  border-radius: 9px;
+  color: white;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: .2s;
+}
+
+button:hover:not(:disabled) {
+  background: #ff4242;
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  background: #292929;
+  color: #777;
+  cursor: not-allowed;
+}
+
+.key-box {
+  margin-top: 20px;
+  padding: 15px;
+  background: #090909;
+  border: 1px solid #333;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.label {
+  color: #888;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  margin-bottom: 10px;
+}
+
+.key {
+  color: #ff5555;
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.copy {
+  margin-top: 12px;
+  padding: 10px;
+  font-size: 13px;
+}
+
+.expiry {
+  color: #aaa;
+  font-size: 12px;
+  line-height: 1.7;
+  margin-top: 15px;
+}
+
+.error { color: #ff6868; }
+
+footer {
+  color: #666;
+  font-size: 11px;
+  margin-top: 25px;
+}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="logo">S</div>
+  <h1>SOVEREIGN <span>HUB</span></h1>
+  <p class="subtitle">
+    Key Generation Portal<br>
+    Generate your access key for 24 hours.
+  </p>
+
+  <div class="status" id="status">Checking key status...</div>
+
+  <button id="generate" disabled>Loading...</button>
+
+  <section class="key-box" id="keyBox" hidden>
+    <div class="label">YOUR ACCESS KEY</div>
+    <div class="key" id="key"></div>
+    <button class="copy" id="copy">Copy Key</button>
+    <div class="expiry" id="expiry"></div>
+  </section>
+
+  <p id="message" class="expiry" role="status"></p>
+  <footer>SOVEREIGN HUB &copy; 2026</footer>
+</main>
+
+<script>
+const button = document.getElementById("generate");
+const statusBox = document.getElementById("status");
+const keyBox = document.getElementById("keyBox");
+const keyText = document.getElementById("key");
+const expiry = document.getElementById("expiry");
+const message = document.getElementById("message");
+
+function showRecord(record) {
+  keyBox.hidden = false;
+  keyText.textContent = record.key;
+
+  button.disabled = true;
+  button.textContent = "GENERATION LOCKED";
+
+  if (record.expired || Date.now() >= record.expiresAt) {
+    statusBox.textContent = "KEY EXPIRED";
+    expiry.textContent = "This key is no longer valid.";
+    return;
+  }
+
+  statusBox.textContent = "KEY GENERATED · ACTIVE";
+  updateCountdown(record.expiresAt);
+
+  const timer = setInterval(() => {
+    if (Date.now() >= record.expiresAt) {
+      clearInterval(timer);
+      statusBox.textContent = "KEY EXPIRED";
+      expiry.textContent = "This key is no longer valid.";
+    } else {
+      updateCountdown(record.expiresAt);
+    }
+  }, 1000);
+}
+
+function updateCountdown(expiresAt) {
+  const remaining = Math.max(0, expiresAt - Date.now());
+  const hours = Math.floor(remaining / 3600000);
+  const minutes = Math.floor((remaining % 3600000) / 60000);
+  const seconds = Math.floor((remaining % 60000) / 1000);
+
+  expiry.textContent =
+    `Expires in ${hours}h ${minutes}m ${seconds}s`;
+}
+
+async function loadStatus() {
+  try {
+    const response = await fetch("/api/status");
+    if (!response.ok) throw new Error("Status unavailable");
+
+    const data = await response.json();
+
+    if (data.generated) {
+      showRecord(data);
+    } else {
+      statusBox.textContent = "NO KEY GENERATED";
+      button.disabled = false;
+      button.textContent = "GENERATE KEY";
+    }
+  } catch {
+    statusBox.textContent = "Unable to connect to server.";
+    button.disabled = true;
+    button.textContent = "UNAVAILABLE";
+  }
+}
+
+button.addEventListener("click", async () => {
+  button.disabled = true;
+  button.textContent = "GENERATING...";
+  message.textContent = "";
+
+  try {
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({})
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      message.textContent = data.error || "Generation failed.";
+      message.className = "expiry error";
+      await loadStatus();
+      return;
+    }
+
+    showRecord(data);
+    message.textContent = "Your key has been generated successfully.";
+  } catch {
+    message.textContent = "Server error. Please try again.";
+    message.className = "expiry error";
+    await loadStatus();
+  }
+});
+
+document.getElementById("copy").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(keyText.textContent);
+    document.getElementById("copy").textContent = "Copied!";
+  } catch {
+    message.textContent = "Select and copy the key manually.";
+  }
+});
+
+loadStatus();
+</script>
+</body>
+  </html>
+  
